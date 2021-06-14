@@ -1,12 +1,10 @@
 use std::env;
 use std::process;
 
-use circularity::Args;
+use circularity::Config;
 
 fn main() {
-    let args: Vec<String> = env::args().collect();
-
-    let args = Args::new(&args).unwrap_or_else(|err| {
+    let args = Config::new(env::args()).unwrap_or_else(|err| {
         eprintln!("Problem parsing arguments: {}", err);
         process::exit(1);
     });

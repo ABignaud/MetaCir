@@ -3,7 +3,7 @@ name = "circularity"
 version = "0.1.0"
 authors = ["ABignaud <amaury.bignaud@pasteur.fr>"]
 edition = "2018"
-description = "MetaCIR - Metagenomic 
+description = "MetaCIR - Metagenomic CIRcular contigs detection. Workflow to detect circular contigs based on short reads."
 license = "BSD-3-Clause"
 
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
