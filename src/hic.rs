@@ -18,9 +18,6 @@ pub struct Record {
     val: u64,
 }
 
-
-
-
 impl Contig {
     // Add the arguments given by the user to the struct.
     pub fn new(args: &[String]) -> Result<Contig, &str> {
@@ -42,7 +39,9 @@ impl Contig {
     pub fn get_matrix(&self) -> Result<(), csv::Error> {
         let csv = "row\tcol\tval\n7\t1\t12\n8\t0\t13\n";
 
-        let mut reader = csv::ReaderBuilder::new().delimiter(b'\t').from_reader(csv.as_bytes());
+        let mut reader = csv::ReaderBuilder::new().delimiter(b'\t').from_reader(
+            csv.as_bytes()
+        );
         // println!("{:?}", reader);
         println!{"testA"};
         for result in reader.deserialize::<Record>() {

@@ -2,6 +2,7 @@ use std::env;
 use std::error::Error;
 use std::process;
 
+mod fasta;
 mod sg;
 
 pub struct Config {
@@ -29,21 +30,15 @@ impl Config {
 }
 
 pub fn run(args: Config) -> Result<(), Box<dyn Error>> {
-    let align = sg::extract_pairs(&args.name, &args.bam_list);
-    let ratios = sg::build_ratio(align);
-    if let Err(e) = sg::write_ratio(ratios) {
+    // let align = sg::extract_pairs(&args.name, &args.bam_list);
+    // let ratios = sg::build_ratio(align);
+    // if let Err(e) = sg::write_ratio(ratios) {
+    // eprintln!("Writing error: {}", e);
+    // process::exit(1);
+    // }
+    if let Err(e) = fasta::main(&args.name) {
         eprintln!("Writing error: {}", e);
-        process::exit(1);
+        process::exit(1)
     }
     Ok(())
-}
-
-// TESTS:
-#[cfg(test)]
-#[ignore]
-mod tests {
-    #[test]
-    fn it_works() {
-        assert_eq!(2 + 2, 4);
-    }
 }
