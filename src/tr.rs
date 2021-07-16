@@ -1,58 +1,20 @@
+//! Module to detect Terminal repeats from the fasta sequences of the contigs.
+//! Two different situation are possible:
+//!     DTR : Direct Terminal Repeats (Both repeats are in the sens)
+//!     ITR : Inverted Terminal Repeats (One repeat is the reverse complement of
+//!     the other.)
+
 use bio::io::fasta;
 use fnv::FnvHashMap;
 use lazy_static::lazy_static;
-/// Module to explore the fasta assembly and detect repeats at the
-/// extremity of the sequences. Two different situation are possible:
-///     DTR : Direct Terminal Repeats
-///     ITR : Inverted Terminal Repeats
 use std::borrow::Borrow;
 use std::error::Error;
 use std::fs::File;
-use std::io;
+use std::io::{self, Write};
 use std::str::from_utf8;
 
-/// Define structure for fasta sequence
-// pub struct FastaSeq {
-//     name: String,
-//     seq: Vec<u8>,
-//     tr: Option<TerminalRepeat>,
-// }
-
-/// Define structure for Terminal repeat
-#[derive(Debug)]
-pub struct TerminalRepeat<'a> {
-    trtype: TrType,
-    seq: &'a str,
-    size: usize,
-    count: usize,
-    n_freq: f32,
-    mode_freq: f32,
-    flag: Option<String>,
-}
-
-/// Implement PartialEq of TerminalRepeat. The equality is just based on the
-/// type, the sequence and the count as the other values directly depends on the
-/// sequence.
-impl PartialEq for TerminalRepeat<'_> {
-    fn eq(&self, other: &Self) -> bool {
-        (self.seq == other.seq)
-            & (self.count == other.count)
-            & (self.trtype == other.trtype)
-    }
-}
-
-/// Define TR type as an enum.
-#[derive(Clone, Copy, Debug, PartialEq)]
-pub enum TrType {
-    Dtr,
-    Itr,
-}
-
-// enum TrFlag {
-//     "Too many ambiguous bases in TR.",
-//     "Repetitive TR sequence.",
-//     "Low complexity TR.",
-// }
+// Here are some functon to build the reverse complement of a sequence. A
+// similar implementation is available in the bio rust module.
 
 // Define translation dictionnary for reverse complement (IUPAC alphabet
 // supported)
@@ -80,12 +42,45 @@ pub fn reverse_complement(seq: &[u8]) -> Vec<u8> {
         .collect()
 }
 
-/// Compute the ratio of the most present character in a text file.
+// Here are some useful struc for the terminal repeat description.
+
+/// Define structure for Terminal repeat data
+#[derive(Debug)]
+pub struct TerminalRepeat<'a> {
+    trtype: TrType,
+    seq: &'a str,
+    size: usize,
+    count: usize,
+    n_freq: f32,
+    mode_freq: f32,
+    flag: Option<String>,
+}
+
+/// Implement PartialEq of TerminalRepeat. The equality is just based on the
+/// type, the sequence and the count as the other values directly depends on the
+/// sequence.
+impl PartialEq for TerminalRepeat<'_> {
+    fn eq(&self, other: &Self) -> bool {
+        (self.seq == other.seq)
+            & (self.count == other.count)
+            & (self.trtype == other.trtype)
+    }
+}
+
+/// Define TR type with both possible values Direct Terminal Repeat (DTR) and
+/// Inverted Terminal Repeat (ITR).
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub enum TrType {
+    Dtr,
+    Itr,
+}
+
+/// Compute the ratio of the most present character in a text file. For us it's
+/// useful to find the mod ratio of the repeated sequence.
 pub fn max_char_counts(text: &str) -> f32 {
-    // Create a HashMap.
+    // Create a FnvHashMap.
     let mut counts: FnvHashMap<char, f32> = FnvHashMap::default();
     let mut max_count: f32 = 0.;
-
     // Count the numbers of occurences of each character.
     for character in text.chars() {
         *counts.entry(character).or_insert(0.) += 1.;
@@ -98,7 +93,6 @@ pub fn max_char_counts(text: &str) -> f32 {
             }
         }
     }
-
     // Divide by size to have the ratio.
     max_count / text.len() as f32
 }
@@ -169,12 +163,14 @@ pub fn fetch_tr<'a>(
     };
 
     // Check if there is an ITR.
+    // Reverse complement the sequence
     let rev_seq: String = from_utf8(&reverse_complement(seq.as_bytes()))
         .unwrap()
         .to_string();
     let itr: Option<TerminalRepeat> = {
         if sub_seq == &rev_seq[0..seed_size] {
             let mut size: usize = seed_size + 1;
+            // Elongate the sequence until it's not the same.
             while (&seq[size..size + 1] == &rev_seq[size..size + 1])
                 & (size <= 200)
             {
@@ -182,12 +178,14 @@ pub fn fetch_tr<'a>(
             }
             sub_seq = &seq[0..size];
             let tr_type = TrType::Itr;
+            // Compute metadata
             Some(compute_tr_metadata(seq, sub_seq, tr_type))
         } else {
             None
         }
     };
 
+    // Check which is the longest terminal repeat to keep at the end.
     let dtr_size: usize = match &dtr {
         Some(tr) => tr.size,
         None => 0,
@@ -204,11 +202,21 @@ pub fn fetch_tr<'a>(
 }
 
 /// Main function to search for DTR/ITR on a whole fasta assembly.
-pub fn main(fasta_file: &str) -> Result<(), Box<dyn Error>> {
-    // start writer
-    let mut wtr = csv::WriterBuilder::new()
-        .delimiter(b'\t')
-        .from_writer(io::stdout());
+pub fn main(
+    fasta_file: &str,
+    min_size: usize,
+    seed_size: usize,
+    out_file: Option<String>,
+) -> Result<(), Box<dyn Error>> {
+    // Start writer depending on the parameters to the stdout or the output
+    // file.
+    let out: Box<dyn Write> = match out_file {
+        Some(out_file) => Box::new(File::create(out_file)?),
+        None => Box::new(io::stdout()),
+    };
+    let mut wtr = csv::WriterBuilder::new().delimiter(b'\t').from_writer(out);
+
+    // Write Header
     wtr.write_record(&[
         "Contig",
         "Terminal Repeat",
@@ -220,24 +228,13 @@ pub fn main(fasta_file: &str) -> Result<(), Box<dyn Error>> {
     ])?;
 
     // start fasta reader
-    let mut reader = fasta::Reader::new(File::open(fasta_file)?);
+    let reader = fasta::Reader::new(File::open(fasta_file)?);
 
     for result in reader.records() {
         let record = result.expect("Error during fasta record parsing");
         let seq: &str = from_utf8(record.seq()).unwrap();
-        let seed_size: usize = 20;
-        let tr: Option<TerminalRepeat> = fetch_tr(seq, seed_size);
-        match tr {
-            Some(tr) => wtr.write_record(&[
-                record.id(),
-                &format!("{:?}", tr.trtype),
-                &format!("{}", tr.size),
-                &format!("{}", tr.count),
-                &format!("{}", tr.n_freq),
-                &format!("{}", tr.mode_freq),
-                tr.seq,
-            ])?,
-            None => wtr.write_record(&[
+        if seq.len() < min_size {
+            wtr.write_record(&[
                 record.id(),
                 "None",
                 "0",
@@ -245,11 +242,32 @@ pub fn main(fasta_file: &str) -> Result<(), Box<dyn Error>> {
                 "0.",
                 "0.",
                 "None",
-            ])?,
-        };
-
+            ])?;
+        } else {
+            let tr: Option<TerminalRepeat> = fetch_tr(seq, seed_size);
+            match tr {
+                Some(tr) => wtr.write_record(&[
+                    record.id(),
+                    &format!("{:?}", tr.trtype),
+                    &format!("{}", tr.size),
+                    &format!("{}", tr.count),
+                    &format!("{}", tr.n_freq),
+                    &format!("{}", tr.mode_freq),
+                    tr.seq,
+                ])?,
+                None => wtr.write_record(&[
+                    record.id(),
+                    "None",
+                    "0",
+                    "0",
+                    "0.",
+                    "0.",
+                    "None",
+                ])?,
+            };
+        }
         // flush writer
-        wtr.flush()?;
+        // wtr.flush()?;
     }
     Ok(())
 }

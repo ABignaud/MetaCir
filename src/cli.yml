@@ -1,0 +1,107 @@
+name: circosight
+version: "0.1.0"
+author: Amaury B. <amaury.bignaud@pasteur.fr>
+about: Circular Contig Detection 
+global_settings:
+    - GlobalVersion
+args:
+    - fasta_file:
+        short: f
+        long: fasta
+        value_name: FILE
+        help: Fasta with the sequences of the contigs.
+        takes_value: true
+        global: true
+    - out_file:
+        short: o
+        long: out-file
+        value_name: FILE
+        help: File where to write the final table output. If no value are given,
+            put the output in the stdout.
+        takes_value: true
+        global: true
+    - min_size:
+        short: m
+        long: min-size
+        value_name: INT
+        help: Minimum size to consider contigs.
+        takes_value: true
+        default_value: "0"
+        global: true
+    - threads:
+        short: t
+        long: threads
+        value_name: INT
+        help: Number of threads to use.
+        takes_value: true
+        global: true
+        default_value: "1"
+subcommands:
+    - tr:
+        name: terminal repeat
+        author: Amaury B. <amaury.bignaud@pasteur.fr>
+        about: Search for terminal repeat in contigs sequences.
+        args:
+            - seed_size:
+                short: s
+                long: seed-size
+                value_name: INT
+                help: Seed size to use to search for terminal repeat.
+                takes_value: true
+                default_value: "20"
+    - sg:
+        name: shotgun reads
+        author: Amaury B. <amaury.bignaud@pasteur.fr>
+        about: Search for circular contigs based on shotgun reads alignment.
+        args:
+            - bam_files:
+                value_name: FILE
+                help: Alignment bam files from  shotgun libraries.
+                takes_value: true
+                index: 1
+                multiple: true
+                required: true            
+    - hic:
+        name: shotgun reads
+        author: Amaury B. <amaury.bignaud@pasteur.fr>
+        about: Search for circular contigs based on shotgun reads alignment.
+        args:
+            - pairs_files:
+                value_name: FILE
+                help: Alignment pairs files from hic libraries. To have a fast
+                    run they should be index using pairix.
+                takes_value: true
+                index: 1
+                multiple: true
+                required: true 
+    - all:
+        name: all
+        author: Amaury B. <amaury.bignaud@pasteur.fr>
+        about: Search for circular contigs based on their sequences, shotgun
+            reads alignment and the hic contact map.
+        args:
+            - seed_size:
+                short: s
+                long: seed-size
+                value_name: INT
+                help: Seed size to use to search for terminal repeat.
+                takes_value: true
+                default_value: "20"
+            - bam_files:
+                short: b
+                long: bam-files
+                value_name: FILE
+                help: Alignment bam files from  shotgun libraries.
+                takes_value: true
+                multiple: true
+                required: true
+            - pairs_files:
+                short: p
+                long: pairs-files
+                value_name: FILE
+                help: Alignment pairs files from hic libraries. To have a fast
+                    run they should be index using pairix.
+                takes_value: true
+                multiple: true
+                required: true 
+        

@@ -15,3 +15,5 @@ itertools = "*"
 lazy_static = "*"
 fnv = "*"
 bio = "*"
+log = "*"
+clap = {version = "*", features = ["yaml"]}
