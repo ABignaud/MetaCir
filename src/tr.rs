@@ -267,7 +267,7 @@ pub fn main(
             };
         }
         // flush writer
-        // wtr.flush()?;
+        wtr.flush()?;
     }
     Ok(())
 }

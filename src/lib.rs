@@ -3,33 +3,27 @@ use std::error::Error;
 use std::process;
 // use log::{trace, info, error};
 
+mod sg;
 mod tr;
 
-pub fn run_tr<'a>(args: &ArgMatches<'a>) -> Result<(), Box<dyn Error>> {
-    // Parse useful arguments.
-    let fasta_file = args.value_of("fasta_file").unwrap();
-    let min_size: usize = args
-        .value_of("min_size")
-        .unwrap()
-        .parse()
-        .expect("min_size should be an integer.");
+/// Parse the argument for terminal repeat detection main function.
+pub fn run_tr<'a>(
+    args: &ArgMatches<'a>,
+    fasta_file: &str,
+    min_size: usize,
+    threads: u16,
+    out_file: Option<String>,
+) -> Result<(), Box<dyn Error>> {
+
+    // Parse tr arguments.
     let seed_size: usize = args
         .value_of("seed_size")
         .unwrap()
         .parse()
         .expect("seed_size should be an integer.");
-    let out_file: Option<String> = match args.value_of("out_file") {
-        Some(value) => Some(value.to_string()),
-        None => None,
-    };
 
     // Raise a warning if more than one threads given as the other one are
     // useless.
-    let threads: u16 = args
-        .value_of("threads")
-        .unwrap()
-        .parse()
-        .expect("threads should be an integer.");
     if threads != 1 {
         eprintln!("WARNING: TR search is not parallelized only 1 thread would be use.")
     };
@@ -42,22 +36,54 @@ pub fn run_tr<'a>(args: &ArgMatches<'a>) -> Result<(), Box<dyn Error>> {
     Ok(())
 }
 
-pub fn run_sg<'a>(args: &ArgMatches<'a>) -> Result<(), Box<dyn Error>> {
-    if let Some(threads) = args.value_of("threads") {
-        println!("Number of threads: {}", threads);
+/// Parse the arguments for circular contigs detection based on the shotgun
+/// reads main function.
+pub fn run_sg<'a>(
+    args: &ArgMatches<'a>,
+    fasta_file: &str,
+    min_size: usize,
+    threads: u16,
+    out_file: Option<String>,
+) -> Result<(), Box<dyn Error>> {
+
+    // Parse sg arguments.
+    let bam_files: Vec<&str> = args.values_of("bam_files").unwrap().collect();
+    
+    // Raise a warning if more than one threads given as the other one are
+    // useless.
+    if threads != 1 {
+        eprintln!("WARNING: TR search is not parallelized only 1 thread would be use.")
+    };
+
+    // Run the main tr function.
+    if let Err(e) = sg::main(bam_files, fasta_file, min_size, out_file) {
+        eprintln!("Writing error: {}", e);
+        process::exit(1)
     }
-    let bam_files: Vec<_> = args.values_of("bam_files").unwrap().collect();
-    println!("Bam files: {:?}", bam_files);
-    println!("Running Shotgun reads pipeline.");
     Ok(())
 }
 
-pub fn run_hic<'a>(_args: &ArgMatches<'a>) -> Result<(), Box<dyn Error>> {
+/// Parse the arguments for circular contigs detection based on the hic reads
+/// main function.
+pub fn run_hic<'a>(
+    _args: &ArgMatches<'a>,
+    _fasta_file: &str,
+    _min_size: usize,
+    _threads: u16,
+    _out_file: Option<String>,
+) -> Result<(), Box<dyn Error>> {
     println!("Not implemented yet, ask the developper to do his job.");
     Ok(())
 }
 
-pub fn run_all<'a>(_args: &ArgMatches<'a>) -> Result<(), Box<dyn Error>> {
+/// Parse the arguments for the all three previous pipeline.
+pub fn run_all<'a>(
+    _args: &ArgMatches<'a>,
+    _fasta_file: &str,
+    _min_size: usize,
+    _threads: u16,
+    _out_file: Option<String>,
+) -> Result<(), Box<dyn Error>> {
     println!("Not implemented yet, ask the developper to do his job.");
     Ok(())
 }

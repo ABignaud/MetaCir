@@ -16,4 +16,5 @@ lazy_static = "*"
 fnv = "*"
 bio = "*"
 log = "*"
+peroxide = "*"
 clap = {version = "*", features = ["yaml"]}
