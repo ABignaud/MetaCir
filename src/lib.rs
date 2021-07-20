@@ -14,7 +14,6 @@ pub fn run_tr<'a>(
     threads: usize,
     out_file: Option<String>,
 ) -> Result<(), Box<dyn Error>> {
-
     // Parse tr arguments.
     let seed_size: usize = args
         .value_of("seed_size")
@@ -45,12 +44,12 @@ pub fn run_sg<'a>(
     threads: usize,
     out_file: Option<String>,
 ) -> Result<(), Box<dyn Error>> {
-
     // Parse sg arguments.
     let bam_files: Vec<&str> = args.values_of("bam_files").unwrap().collect();
-    
+
     // Run the main tr function.
-    if let Err(e) = sg::main(bam_files, fasta_file, min_size, out_file, threads) {
+    if let Err(e) = sg::main(bam_files, fasta_file, min_size, out_file, threads)
+    {
         eprintln!("Writing error: {}", e);
         process::exit(1)
     }

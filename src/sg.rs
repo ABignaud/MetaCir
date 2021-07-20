@@ -1,12 +1,12 @@
+use bio::io::fasta;
+use peroxide::fuga::*;
+use peroxide::pnorm;
+use rayon::prelude::*;
 use std::cmp;
 use std::convert::TryFrom;
 use std::error::Error;
 use std::fs::File;
 use std::io::{self, Write};
-use bio::io::fasta;
-use peroxide::pnorm;
-use peroxide::fuga::*;
-use rayon::prelude::*;
 
 /// Structure for a read with only start position and the sense of the reads.
 #[derive(Debug)]
@@ -48,7 +48,9 @@ pub fn extract_pairs(name: &str, bam_files: &Vec<&str>) -> Option<Align> {
                 // Detect strand of the read based on the flag.
                 let flag = record.flag();
                 if flag.mate_is_mapped() {
-                    if flag.is_reverse_strand() && !flag.mate_is_reverse_strand() {
+                    if flag.is_reverse_strand()
+                        && !flag.mate_is_reverse_strand()
+                    {
                         reads.push(Read {
                             position: u32::try_from(record.start()).unwrap(),
                             forward: false,
@@ -87,7 +89,6 @@ pub struct PlusRatio {
 }
 
 impl PlusRatio {
-
     /// Compute the start end to keep as it could have no coverage at the
     /// beginning/end. Remove extremities if there have a total count with a
     /// distance at the mean greater than 1.5 time the standard deviation. The
@@ -95,23 +96,24 @@ impl PlusRatio {
     /// position.
     fn start_end(&self) -> (usize, usize) {
         let mut start: usize = 0;
-        let mut end: usize =  self.count_total.len() - 2;
-        let mean: f32 = self.count_total.iter().sum::<u32>() as f32 / (end + 2) as f32;
+        let mut end: usize = self.count_total.len() - 2;
+        let mean: f32 =
+            self.count_total.iter().sum::<u32>() as f32 / (end + 2) as f32;
         let mut std: f32 = 0.;
         for i in self.count_total.iter() {
             std += (*i as f32 - mean).powf(2.);
-        };
+        }
         let threshold = 1.5 * (std / (end + 2) as f32).sqrt();
         while (self.count_total[start] as f32 - mean).abs() > threshold {
             start += 1
-        };
+        }
         while (self.count_total[end] as f32 - mean).abs() > threshold {
             end -= 1
-        };
+        }
         if start >= 3 {
             start = 2
         };
-        if end <= self.count_total.len() - 5{
+        if end <= self.count_total.len() - 5 {
             end = self.count_total.len()
         };
         (start, end)
@@ -142,7 +144,7 @@ impl PlusRatio {
                 sum_std += (i - mean).powf(2.);
             }
         }
-        (sum_std / n).sqrt() 
+        (sum_std / n).sqrt()
     }
 
     fn total_contact(&self) -> u32 {
@@ -165,11 +167,11 @@ pub fn build_ratio(align: Align) -> PlusRatio {
     let mut ratio: Vec<Option<f32>> = vec![Some(0.0); binned_len as usize];
 
     for read in align.reads {
-        // Play a trick on index to have the residual bin in the middle of the 
+        // Play a trick on index to have the residual bin in the middle of the
         // contig.
         let index: usize = {
             if read.position < (trim_len * binned_len / 2) {
-                (read.position / trim_len) as usize 
+                (read.position / trim_len) as usize
             } else {
                 ((read.position + res_bin) / trim_len) as usize
             }
@@ -184,7 +186,7 @@ pub fn build_ratio(align: Align) -> PlusRatio {
     for (i, (forward, total)) in
         count_forward.iter().zip(&count_total).enumerate()
     {
-        if (i as u32) < (binned_len as u32 / 2) { 
+        if (i as u32) < (binned_len as u32 / 2) {
             position[i] = i as u32 * trim_len;
         } else {
             position[i] = i as u32 * trim_len + res_bin;
@@ -213,24 +215,23 @@ pub struct Score {
     flag: String,
 }
 
-/// Compute the score. 
+/// Compute the score.
 fn compute_score(ratio: f32, mean: f32, std: f32) -> f64 {
     let score = if ratio > mean {
-        2. * pnorm!(2. * mean - ratio, mean , std)
+        2. * pnorm!(2. * mean - ratio, mean, std)
     } else {
         2. * pnorm!(ratio, mean, std)
     };
     score
 }
 
-/// Fonction to compute the score. 
+/// Fonction to compute the score.
 pub fn build_score(ratio: PlusRatio) -> Score {
-    
     // Look for start and end position.
     let (start, end) = ratio.start_end();
 
     // compute mean and count of non zeros values.
-    let (mean, n)  = ratio.mean(start + 1, end);
+    let (mean, n) = ratio.mean(start + 1, end);
 
     // Look for the values at the extremities:
     let left = match ratio.ratio[start] {
@@ -248,10 +249,10 @@ pub fn build_score(ratio: PlusRatio) -> Score {
             circular: "ND".to_string(),
             contact: Some(ratio.total_contact()),
             score: None,
-            flag: "Not enough coverage on at least half the contig.".to_string(),
+            flag: "Not enough coverage on at least half the contig."
+                .to_string(),
         }
     }
-
     // Case where there is no coverage at the extremities.
     else if (right == -1.) | (left == -1.) {
         Score {
@@ -261,12 +262,13 @@ pub fn build_score(ratio: PlusRatio) -> Score {
             flag: "No coverage in at least one extremity".to_string(),
         }
     }
-
     // Compute the score.
     else {
         // compute standard deviation.
         let std = ratio.std(start + 1, end, mean, n);
-        let score = (compute_score(left, mean, std) + compute_score(right, mean, std)) / 2.;
+        let score = (compute_score(left, mean, std)
+            + compute_score(right, mean, std))
+            / 2.;
         let circular = if score > 0.5 {
             "true".to_string()
         } else {
@@ -306,16 +308,14 @@ impl Contig {
                 // Try to build score.
                 Some(align) => {
                     let ratio = build_ratio(align);
-                    build_score(ratio) 
-                },
+                    build_score(ratio)
+                }
                 // Case where no reads match on the contig
-                None => {
-                    Score {
-                        circular: "ND".to_string(),
-                        contact: Some(0),
-                        score: None,
-                        flag: "No reads mapped on the contig.".to_string(),
-                    }
+                None => Score {
+                    circular: "ND".to_string(),
+                    contact: Some(0),
+                    score: None,
+                    flag: "No reads mapped on the contig.".to_string(),
                 },
             }
         }
@@ -331,9 +331,11 @@ pub fn main(
     out_file: Option<String>,
     threads: usize,
 ) -> Result<(), Box<dyn Error>> {
-
     // Define number of threads to use.
-    rayon::ThreadPoolBuilder::new().num_threads(threads).build_global().unwrap();
+    rayon::ThreadPoolBuilder::new()
+        .num_threads(threads)
+        .build_global()
+        .unwrap();
 
     // Start writer depending on the parameters to the stdout or the output
     // file.
@@ -344,14 +346,8 @@ pub fn main(
     let mut wtr = csv::WriterBuilder::new().delimiter(b'\t').from_writer(out);
 
     // Write Header
-    wtr.write_record(&[
-        "Contig",
-        "Circular",
-        "Pairs_mapped",
-        "Score",
-        "Flag"
-    ])?;
-    
+    wtr.write_record(&["Contig", "Circular", "Pairs_mapped", "Score", "Flag"])?;
+
     // Build vector of contigs with result.
     let mut result: Vec<Contig> = Vec::new();
 
@@ -359,16 +355,17 @@ pub fn main(
     let reader = fasta::Reader::new(File::open(fasta_file)?);
     for record in reader.records() {
         let entry = record.expect("Error during fasta record parsing");
-        // Build contig object and integrate it in a vector 
+        // Build contig object and integrate it in a vector
         result.push(Contig {
             record_id: entry.id().to_string(),
             size: entry.seq().len(),
-            .. Default::default()
+            ..Default::default()
         });
     }
 
     // Run logic on value to build score or not.
-    result = result.into_par_iter()
+    result = result
+        .into_par_iter()
         .map(|contig| contig.parse_contig(min_size, &bam_files))
         .collect();
 
@@ -388,11 +385,11 @@ pub fn main(
             &format!("{}", contig.score.circular),
             &format!("{}", contact_value),
             &format!("{}", score_value),
-            &format!("{}", contig.score.flag)
+            &format!("{}", contig.score.flag),
         ])?;
         // flush writer
         wtr.flush()?;
-    };
+    }
     Ok(())
 }
 
@@ -404,11 +401,22 @@ mod tests {
     /// Test build score
     #[test]
     fn test_build_score() {
-        let ratios = PlusRatio { 
+        let ratios = PlusRatio {
             position: vec![0, 75, 150, 225, 300, 375, 450, 525, 600, 675],
             count_forward: vec![267, 142, 128, 121, 101, 68, 90, 96, 75, 50],
             count_total: vec![410, 324, 255, 262, 209, 218, 196, 199, 172, 123],
-            ratio: vec![Some(0.6512195), Some(0.4382716), Some(0.5019608), Some(0.46183205), None, Some(0.3119266), None, Some(0.48241207), Some(0.4360465), None],
+            ratio: vec![
+                Some(0.6512195),
+                Some(0.4382716),
+                Some(0.5019608),
+                Some(0.46183205),
+                None,
+                Some(0.3119266),
+                None,
+                Some(0.48241207),
+                Some(0.4360465),
+                None,
+            ],
         };
         let expected_result = Score {
             circular: "true".to_string(),
