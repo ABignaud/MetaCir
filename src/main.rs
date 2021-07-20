@@ -21,7 +21,7 @@ fn main() -> Result<(), &'static str> {
         .unwrap()
         .parse()
         .expect("min_size should be an integer.");
-    let threads: u16 = matches
+    let threads: usize = matches
         .value_of("threads")
         .unwrap()
         .parse()

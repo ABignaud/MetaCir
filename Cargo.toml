@@ -17,4 +17,5 @@ fnv = "*"
 bio = "*"
 log = "*"
 peroxide = "*"
+rayon = "*"
 clap = {version = "*", features = ["yaml"]}

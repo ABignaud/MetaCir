@@ -6,6 +6,7 @@ use std::io::{self, Write};
 use bio::io::fasta;
 use peroxide::pnorm;
 use peroxide::fuga::*;
+use rayon::prelude::*;
 
 /// Structure for a read with only start position and the sense of the reads.
 #[derive(Debug)]
@@ -204,10 +205,10 @@ pub fn build_ratio(align: Align) -> PlusRatio {
 }
 
 /// Structure for saving results.
-#[derive(Debug, PartialEq)]
+#[derive(Debug, Default, PartialEq)]
 pub struct Score {
     circular: String,
-    contact: u32,
+    contact: Option<u32>,
     score: Option<f64>,
     flag: String,
 }
@@ -245,7 +246,7 @@ pub fn build_score(ratio: PlusRatio) -> Score {
     if n < ((end - start) as f32) / 2. {
         Score {
             circular: "ND".to_string(),
-            contact: ratio.total_contact(),
+            contact: Some(ratio.total_contact()),
             score: None,
             flag: "Not enough coverage on at least half the contig.".to_string(),
         }
@@ -255,7 +256,7 @@ pub fn build_score(ratio: PlusRatio) -> Score {
     else if (right == -1.) | (left == -1.) {
         Score {
             circular: "ND".to_string(),
-            contact: ratio.total_contact(),
+            contact: Some(ratio.total_contact()),
             score: None,
             flag: "No coverage in at least one extremity".to_string(),
         }
@@ -274,10 +275,51 @@ pub fn build_score(ratio: PlusRatio) -> Score {
         // println!("{:?}", ratio);
         Score {
             circular: circular,
-            contact: ratio.total_contact(),
+            contact: Some(ratio.total_contact()),
             score: Some(score),
             flag: "Ok".to_string(),
         }
+    }
+}
+
+#[derive(Default)]
+pub struct Contig {
+    record_id: String,
+    size: usize,
+    score: Score,
+}
+
+impl Contig {
+    fn parse_contig(mut self, min_size: usize, bam_files: &Vec<&str>) -> Self {
+        // Case of contigs smaller than the threshold.
+        if self.size < min_size {
+            self.score = Score {
+                circular: "ND".to_string(),
+                contact: None,
+                score: None,
+                flag: "Too small".to_string(),
+            }
+        // Try to build score.
+        } else {
+            let align = extract_pairs(&self.record_id, &bam_files);
+            self.score = match align {
+                // Try to build score.
+                Some(align) => {
+                    let ratio = build_ratio(align);
+                    build_score(ratio) 
+                },
+                // Case where no reads match on the contig
+                None => {
+                    Score {
+                        circular: "ND".to_string(),
+                        contact: Some(0),
+                        score: None,
+                        flag: "No reads mapped on the contig.".to_string(),
+                    }
+                },
+            }
+        }
+        self
     }
 }
 
@@ -287,7 +329,11 @@ pub fn main(
     fasta_file: &str,
     min_size: usize,
     out_file: Option<String>,
+    threads: usize,
 ) -> Result<(), Box<dyn Error>> {
+
+    // Define number of threads to use.
+    rayon::ThreadPoolBuilder::new().num_threads(threads).build_global().unwrap();
 
     // Start writer depending on the parameters to the stdout or the output
     // file.
@@ -305,52 +351,48 @@ pub fn main(
         "Score",
         "Flag"
     ])?;
+    
+    // Build vector of contigs with result.
+    let mut result: Vec<Contig> = Vec::new();
 
     // start fasta reader
     let reader = fasta::Reader::new(File::open(fasta_file)?);
-    for result in reader.records() {
-        let record = result.expect("Error during fasta record parsing");
-        let seq = record.seq();
-        if seq.len() < min_size {
-            wtr.write_record(&[
-                record.id(),
-                "ND",
-                "ND",
-                "ND",
-                "Too small.",
-            ])?;
-        } else {
-            let align = extract_pairs(record.id(), &bam_files);
-            match align {
-                Some(align) => {
-                    let ratio = build_ratio(align);
-                    let score = build_score(ratio);
-                    let score_value = match score.score {
-                        Some(score) => format!("{:?}", score),
-                        None => "ND".to_string(),
-                    };
-                    wtr.write_record(&[
-                        record.id(),
-                        &format!("{}", score.circular),
-                        &format!("{}", score.contact),
-                        &format!("{}", score_value),
-                        &format!("{}", score.flag),
-                    ])?;
-                },
-                None => {
-                    wtr.write_record(&[
-                        record.id(),
-                        "ND",
-                        "0",
-                        "ND",
-                        "No reads mapped on the contig.",
-                    ])?;
-                },
-            };
-        }
+    for record in reader.records() {
+        let entry = record.expect("Error during fasta record parsing");
+        // Build contig object and integrate it in a vector 
+        result.push(Contig {
+            record_id: entry.id().to_string(),
+            size: entry.seq().len(),
+            .. Default::default()
+        });
+    }
+
+    // Run logic on value to build score or not.
+    result = result.into_par_iter()
+        .map(|contig| contig.parse_contig(min_size, &bam_files))
+        .collect();
+
+    for contig in result.iter() {
+        // Parse score values.
+        let contact_value = match contig.score.contact {
+            Some(contact) => format!("{:?}", contact),
+            None => "ND".to_string(),
+        };
+        let score_value = match contig.score.score {
+            Some(score) => format!("{:?}", score),
+            None => "ND".to_string(),
+        };
+        // Write in the output.
+        wtr.write_record(&[
+            &contig.record_id,
+            &format!("{}", contig.score.circular),
+            &format!("{}", contact_value),
+            &format!("{}", score_value),
+            &format!("{}", contig.score.flag)
+        ])?;
         // flush writer
         wtr.flush()?;
-    }
+    };
     Ok(())
 }
 
@@ -370,7 +412,7 @@ mod tests {
         };
         let expected_result = Score {
             circular: "true".to_string(),
-            contact: 2368,
+            contact: Some(2368),
             score: Some(0.9747624989970725),
             flag: "Ok".to_string(),
         };

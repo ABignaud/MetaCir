@@ -11,7 +11,7 @@ pub fn run_tr<'a>(
     args: &ArgMatches<'a>,
     fasta_file: &str,
     min_size: usize,
-    threads: u16,
+    threads: usize,
     out_file: Option<String>,
 ) -> Result<(), Box<dyn Error>> {
 
@@ -42,21 +42,15 @@ pub fn run_sg<'a>(
     args: &ArgMatches<'a>,
     fasta_file: &str,
     min_size: usize,
-    threads: u16,
+    threads: usize,
     out_file: Option<String>,
 ) -> Result<(), Box<dyn Error>> {
 
     // Parse sg arguments.
     let bam_files: Vec<&str> = args.values_of("bam_files").unwrap().collect();
     
-    // Raise a warning if more than one threads given as the other one are
-    // useless.
-    if threads != 1 {
-        eprintln!("WARNING: TR search is not parallelized only 1 thread would be use.")
-    };
-
     // Run the main tr function.
-    if let Err(e) = sg::main(bam_files, fasta_file, min_size, out_file) {
+    if let Err(e) = sg::main(bam_files, fasta_file, min_size, out_file, threads) {
         eprintln!("Writing error: {}", e);
         process::exit(1)
     }
@@ -69,7 +63,7 @@ pub fn run_hic<'a>(
     _args: &ArgMatches<'a>,
     _fasta_file: &str,
     _min_size: usize,
-    _threads: u16,
+    _threads: usize,
     _out_file: Option<String>,
 ) -> Result<(), Box<dyn Error>> {
     println!("Not implemented yet, ask the developper to do his job.");
@@ -81,7 +75,7 @@ pub fn run_all<'a>(
     _args: &ArgMatches<'a>,
     _fasta_file: &str,
     _min_size: usize,
-    _threads: u16,
+    _threads: usize,
     _out_file: Option<String>,
 ) -> Result<(), Box<dyn Error>> {
     println!("Not implemented yet, ask the developper to do his job.");
