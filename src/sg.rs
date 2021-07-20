@@ -114,7 +114,7 @@ impl PlusRatio {
             start = 2
         };
         if end <= self.count_total.len() - 5 {
-            end = self.count_total.len()
+            end = self.count_total.len() - 4
         };
         (start, end)
     }
