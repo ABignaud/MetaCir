@@ -100,21 +100,23 @@ impl PlusRatio {
         for i in self.count_total.iter() {
             std += (*i as f32 - mean).powf(2.);
         };
-        let threshold_start = 1.5 * (std / (end + 2) as f32).sqrt();
-        let threshold_end = 1.5 * (std / (end + 2) as f32).sqrt();
-        while (self.count_total[start] as f32 - mean).abs() > threshold_start {
+        let threshold = 1.5 * (std / (end + 2) as f32).sqrt();
+        while (self.count_total[start] as f32 - mean).abs() > threshold {
             start += 1
         };
-        while (self.count_total[end] as f32 - mean).abs() > threshold_end {
+        while (self.count_total[end] as f32 - mean).abs() > threshold {
             end -= 1
+        };
+        if start >= 3 {
+            start = 2
+        };
+        if end <= self.count_total.len() - 5{
+            end = self.count_total.len()
         };
         (start, end)
     }
 
     /// Implement the mean of the ratio. The two extremities are removed.
-    /// Indeed, in the two first value we expect to have an increasing of plus
-    /// and the four last an increasing of minus. The two last we expect no
-    /// signal (or only a few) as we took the left position to count.
     fn mean(&self, start: usize, end: usize) -> (f32, f32) {
         let mut sum: f32 = 0.;
         let mut n: f32 = 0.;
@@ -225,10 +227,9 @@ pub fn build_score(ratio: PlusRatio) -> Score {
     
     // Look for start and end position.
     let (start, end) = ratio.start_end();
-    println!("{} {}", start, end);
 
     // compute mean and count of non zeros values.
-    let (mean, n)  = ratio.mean(start + 1, end - 1);
+    let (mean, n)  = ratio.mean(start + 1, end);
 
     // Look for the values at the extremities:
     let left = match ratio.ratio[start] {
@@ -263,7 +264,7 @@ pub fn build_score(ratio: PlusRatio) -> Score {
     // Compute the score.
     else {
         // compute standard deviation.
-        let std = ratio.std(start, end, mean, n);
+        let std = ratio.std(start + 1, end, mean, n);
         let score = (compute_score(left, mean, std) + compute_score(right, mean, std)) / 2.;
         let circular = if score > 0.5 {
             "true".to_string()
@@ -357,8 +358,6 @@ pub fn main(
 mod tests {
 
     use super::*;
-    extern crate peroxide;
-
 
     /// Test build score
     #[test]
@@ -370,14 +369,17 @@ mod tests {
             ratio: vec![Some(0.6512195), Some(0.4382716), Some(0.5019608), Some(0.46183205), None, Some(0.3119266), None, Some(0.48241207), Some(0.4360465), None],
         };
         let expected_result = Score {
-            circular: "false".to_string(),
+            circular: "true".to_string(),
             contact: 2368,
-            score: Some(0.24511313952799357),
+            score: Some(0.9747624989970725),
             flag: "Ok".to_string(),
         };
-        let (mean, n) = ratios.mean();
-        assert_eq!(mean, 0.4252398);
-        assert_eq!(ratios.std(mean, n), 0.08178221);
+        let (start, end) = ratios.start_end();
+        let (mean, n) = ratios.mean(start + 1, end);
+        assert_eq!(start, 1);
+        assert_eq!(end, 8);
+        assert_eq!(mean, 0.43953288);
+        assert_eq!(ratios.std(start + 1, end, mean, n), 0.07502747);
         assert_eq!(ratios.total_contact(), 2368);
         let result: Score = build_score(ratios);
         assert_eq!(result, expected_result);
