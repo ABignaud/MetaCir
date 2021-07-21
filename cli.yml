@@ -66,6 +66,25 @@ subcommands:
         author: Amaury B. <amaury.bignaud@pasteur.fr>
         about: Search for circular contigs based on shotgun reads alignment.
         args:
+            - contig_data_file:
+                short: c
+                long: contig-data
+                value_name: FILE
+                help: The contig data file have the metator output format and
+                    needs only the 'Name' and 'Size' column. But a tabulation
+                    separated file with two column with an header 'Name'
+                    (contigs names from the fasta assembly) and 'Size' will 
+                    work.
+                takes_value: true
+                required: true
+            - enzyme:
+                short: e
+                long: enzyme
+                value_name: STR
+                help: The list of restriction enzyme separated by a comma used
+                    to digest.
+                takes_value: true
+                default_value: "HpaII"
             - pairs_files:
                 value_name: FILE
                 help: Alignment pairs files from hic libraries. To have a fast
@@ -73,7 +92,23 @@ subcommands:
                 takes_value: true
                 index: 1
                 multiple: true
-                required: true 
+                required: true
+            - plot:
+                short: p
+                long: plot
+                value_name: DIR
+                help: If one directrory given, plot the contact map which have
+                    enough signal. 
+                takes_value: true
+                default_value: "None"
+            - tmp_dir:
+                short: T
+                long: tmp-dir
+                value_name: DIR
+                help: Directory for storing intermediary files and temporary
+                    files.
+                takes_value: true
+                default_value: "./tmp"
     - all:
         name: all
         author: Amaury B. <amaury.bignaud@pasteur.fr>
@@ -96,7 +131,7 @@ subcommands:
                 multiple: true
                 required: true
             - pairs_files:
-                short: p
+                short: P
                 long: pairs-files
                 value_name: FILE
                 help: Alignment pairs files from hic libraries. To have a fast
@@ -104,4 +139,46 @@ subcommands:
                 takes_value: true
                 multiple: true
                 required: true 
-        
+            - contig_data_file:
+                short: c
+                long: contig-data
+                value_name: FILE
+                help: The contig data file have the metator output format and
+                    needs only the 'Name' and 'Size' column. But a tabulation
+                    separated file with two column with an header 'Name'
+                    (contigs names from the fasta assembly) and 'Size' will 
+                    work.
+                takes_value: true
+                required: true
+            - enzyme:
+                short: e
+                long: enzyme
+                value_name: STR
+                help: The list of restriction enzyme separated by a comma used
+                    to digest.
+                takes_value: true
+                default_value: "HpaII"
+            - plot:
+                short: p
+                long: plot
+                value_name: DIR
+                help: If one directrory given, plot the contact map which have
+                    enough signal. 
+                takes_value: true
+                default_value: "None"
+            - tmp_dir:
+                short: T
+                long: tmp-dir
+                value_name: DIR
+                help: Directory for storing intermediary files and temporary
+                    files.
+                takes_value: true
+                default_value: "./tmp"
+            - skip_workflow:
+                short: w
+                long: skip-workflow
+                value_name: STR
+                help: Workflow to skip. Four possible values, 'tr', 'sg', 'hic'
+                    or 'None'.
+                takes_value: true
+                default_value: "None"

@@ -18,4 +18,5 @@ bio = "*"
 log = "*"
 peroxide = "*"
 rayon = "*"
+shellexpand = "*"
 clap = {version = "*", features = ["yaml"]}

@@ -6,7 +6,7 @@ use std::process;
 
 fn main() -> Result<(), &'static str> {
     // Parse args with clap
-    let yaml = load_yaml!("cli.yml");
+    let yaml = load_yaml!("../cli.yml");
     let matches = App::from_yaml(yaml).get_matches();
 
     // Check if fasta assembly is given
