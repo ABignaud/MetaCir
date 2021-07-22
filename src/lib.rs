@@ -68,6 +68,7 @@ pub fn run_hic<'a>(
 ) -> Result<(), Box<dyn Error>> {
     // Parse hic arguments.
     let contig_data_file = args.value_of("contig_data_file").unwrap();
+    let cov_threshold = args.value_of("cov_threshold").unwrap();
     let enzyme = args.value_of("enzyme").unwrap();
     let pairs_files: Vec<&str> =
         args.values_of("pairs_files").unwrap().collect();
@@ -81,6 +82,7 @@ pub fn run_hic<'a>(
     if let Err(e) = hic::main(
         pairs_files,
         contig_data_file,
+        cov_threshold,
         enzyme,
         fasta_file,
         min_size,

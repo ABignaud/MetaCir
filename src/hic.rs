@@ -7,6 +7,7 @@ const FILE: &'static str =
 pub fn main(
     pairs_files: Vec<&str>,
     contig_data_file: &str,
+    cov_threshold: &str,
     enzyme: &str,
     fasta_file: &str,
     min_size: usize,
@@ -37,6 +38,8 @@ pub fn main(
         .args(&[
             "--enzyme",
             enzyme,
+            "--cov-threshold",
+            cov_threshold,
             "--min-size",
             min_size,
             "--plot",

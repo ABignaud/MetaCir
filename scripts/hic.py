@@ -9,7 +9,7 @@ from itertools import compress
 from hicstuff.hicstuff import normalize_sparse
 from hicstuff.hicstuff import mad
 import metator.contact_map as mtc
-import metator.log as mtl 
+import metator.log as mtl
 import hicstuff.log as hcl
 import logging
 from os.path import join
@@ -21,6 +21,7 @@ import multiprocessing
 from functools import partial
 import tqdm
 import click
+
 
 class Contig:
     def __init__(self, name, frags_file, matrix_file, out_dir=None):
@@ -81,11 +82,16 @@ class Contig:
     def plot_matrix(self):
         array = self.matrix.A
         plt.figure()
-        im_kwargs = {'vmin': 0, 'vmax': np.percentile(array, 99), 'cmap': "Reds", 'interpolation': "none"}
+        im_kwargs = {
+            "vmin": 0,
+            "vmax": np.percentile(array, 99),
+            "cmap": "Reds",
+            "interpolation": "none",
+        }
         plt.imshow(array, **im_kwargs)
         plt.colorbar()
         plt.axis("off")
-        filename = join(self.out_dir, self.name + ".png") 
+        filename = join(self.out_dir, self.name + ".png")
         plt.savefig(filename, bbox_inches="tight", pad_inches=0.0, dpi=100)
 
     def get_circularity(self):
@@ -124,7 +130,13 @@ class Contig:
             self.flag = "Cannot load the matrix. It might be an empty matrix."
             self.circularity = 0
         self.circularity = round(self.circularity, 2)
-        return self.non_zeros, self.frags, self.contact, self.circularity, self.flag
+        return (
+            self.non_zeros,
+            self.frags,
+            self.contact,
+            self.circularity,
+            self.flag,
+        )
 
 
 def get_good_bins(M, n_mad=2.0, s_min=None, s_max=None, symmetric=False):
@@ -184,7 +196,7 @@ def compute_circularity(
     pairs_file,
     min_size,
     tmp_dir,
-    out_dir = None
+    out_dir=None,
 ):
     tmp_dir_contig = join(tmp_dir, contig)
     os.makedirs(tmp_dir_contig, exist_ok=True)
@@ -219,26 +231,53 @@ def compute_circularity(
         # print(contig, non_zeros, frags, contact, score, flag)
         return contig, non_zeros, frags, contact, score, flag
 
+
 @click.command()
-@click.argument('assembly_file', type=click.Path(exists=True))
-@click.argument('contig_data_file', type=click.Path(exists=True))
-@click.argument('pairs_file', type=click.Path(exists=False))
-@click.option('--enzyme', default="HpaII", help='The list of restriction enzyme used to digest. [Default: HpaII]')
-@click.option('--min-size', default=5000, help='Minimum size threshold to consider contigs. [Default: 5000]')
-@click.option('--plot', default=None, help='If one directrory given, plot the contact map which have enough signal. [Default: None]')
-@click.option('--out-file', default="circular_hic_data.tsv", help='Name of the output file. [Default: circular_hic_data.tsv]')
-@click.option('--tmp-dir', default='./tmp', help='Directory for storing intermediary files and temporary files. Default creates a "tmp" folder in the current directory.')
-@click.option('--threads', default=1, help='Number of threads. [Default: 1]')
+@click.argument("assembly_file", type=click.Path(exists=True))
+@click.argument("contig_data_file", type=click.Path(exists=True))
+@click.argument("pairs_file", type=click.Path(exists=False))
+@click.option(
+    "--cov-threshold",
+    default=0.1,
+    help="Minimum number of HiC contacts per base pair.",
+)
+@click.option(
+    "--enzyme",
+    default="HpaII",
+    help="The list of restriction enzyme used to digest. [Default: HpaII]",
+)
+@click.option(
+    "--min-size",
+    default=5000,
+    help="Minimum size threshold to consider contigs. [Default: 5000]",
+)
+@click.option(
+    "--plot",
+    default=None,
+    help="If one directrory given, plot the contact map which have enough signal. [Default: None]",
+)
+@click.option(
+    "--out-file",
+    default="circular_hic_data.tsv",
+    help="Name of the output file. [Default: circular_hic_data.tsv]",
+)
+@click.option(
+    "--tmp-dir",
+    default="./tmp",
+    help='Directory for storing intermediary files and temporary files. Default creates a "tmp" folder in the current directory.',
+)
+@click.option("--threads", default=1, help="Number of threads. [Default: 1]")
 def main(
     assembly_file,
     contig_data_file,
+    cov_threshold,
     enzyme,
     min_size,
     pairs_file,
     out_file,
     tmp_dir,
     threads,
-    plot
+    plot,
 ):
     """
     Function to compute circularity score of contigs from a fasta assembly
@@ -256,7 +295,8 @@ def main(
     mtl.logger.setLevel(logging.WARNING)
     hcl.logger.setLevel(logging.WARNING)
 
-    # Convert to int 
+    # Convert to int
+    cov_threshold = float(cov_threshold)
     min_size = int(min_size)
     threads = int(threads)
 
@@ -268,17 +308,19 @@ def main(
 
     # Extract contigs of interest.
     contigs_data = pd.read_csv(contig_data_file, sep="\t")
-    mask = contigs_data.Size >= min_size
+    mask_len = contigs_data.Size >= min_size
+    mask_cov = contigs_data.Hit / contigs_data.Size > cov_threshold
+    mask = [mask_len[i] and mask_cov[i] for i in range(len(mask_len))]
     list_contigs = contigs_data.loc[mask, "Name"]
-    
+
     # Build data frame for returning values
-    contigs_data_hic = pd.DataFrame(index = contigs_data.Name)
+    contigs_data_hic = pd.DataFrame(index=contigs_data.Name)
     contigs_data_hic["HiC_frags"] = "-"
     contigs_data_hic["HiC_non_zeros"] = "-"
     contigs_data_hic["HiC_contact"] = "-"
     contigs_data_hic["HiC_cir_score"] = "-"
     contigs_data_hic["HiC_cir_flag"] = "-"
-    
+
     compute_circularity_contig = partial(
         compute_circularity,
         assembly_file=assembly_file,
@@ -292,7 +334,9 @@ def main(
 
     pool = multiprocessing.Pool(threads)
     with tqdm.tqdm(total=len(list_contigs)) as pbar:
-        for index, non_zeros, frags, contact, score, flag in pool.imap(compute_circularity_contig, list_contigs):
+        for index, non_zeros, frags, contact, score, flag in pool.imap(
+            compute_circularity_contig, list_contigs
+        ):
             contigs_data_hic.loc[index, "HiC_contact"] = contact
             contigs_data_hic.loc[index, "HiC_non_zeros"] = non_zeros
             contigs_data_hic.loc[index, "HiC_frags"] = frags
@@ -304,5 +348,6 @@ def main(
     # Delete the temporary folder.
     shutil.rmtree(tmp_dir)
 
-if __name__ == '__main__':
+
+if __name__ == "__main__":
     main()

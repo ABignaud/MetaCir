@@ -77,6 +77,13 @@ subcommands:
                     work.
                 takes_value: true
                 required: true
+            - cov_threshold:
+                short: q
+                long: cov_threshold
+                value_name: FLOAT
+                help: Number of HiC contacts per base pair.
+                takes_value: true
+                default_value: "0.1"
             - enzyme:
                 short: e
                 long: enzyme
